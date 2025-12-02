@@ -21,6 +21,12 @@ if "selected_date" not in st.session_state:
     st.session_state.selected_date = datetime.today().date()
 if "current_date" not in st.session_state:
     st.session_state.current_date = datetime.today().date()
+if "auto_loaded" not in st.session_state:
+    st.session_state.auto_loaded = False
+if "status_message" not in st.session_state:
+    st.session_state.status_message = None
+if "status_type" not in st.session_state:
+    st.session_state.status_type = None
 
 # ====== Helper Functions ======
 def rerun():
@@ -33,65 +39,48 @@ def rerun():
 def handle_update():
     """Fetch news from n8n."""
     date_str = st.session_state.selected_date.strftime("%Y/%m/%d")
-    
-    # Use a placeholder to show updating status in the correct area
-    # We need to access the placeholder that is rendered below. 
-    # Since Streamlit renders top-to-bottom, we can't easily access a placeholder defined later.
-    # However, we can define the placeholder EARLY (before button) but that puts it above.
-    # OR we can use st.empty() at the top of the script and move it? No.
-    # BEST APPROACH: Just use st.toast or st.info at the top? User wants it in the status area.
-    # WORKAROUND: We will use a session state flag to show "Updating..." in the status area on rerun?
-    # But fetch happens inside the callback.
-    # Let's try to use `st.spinner` but explain to user it's standard behavior OR
-    # use `status_placeholder.info(...)` if we define it early.
-    # Given the layout constraint (Status below Button), we can define the placeholder 
-    # immediately after the button columns.
-    
-    # Actually, let's just use st.spinner for now as it's robust, 
-    # but we will try to make the status area show "Updating..." if possible.
-    # Since we can't easily update a container defined later, we will stick to spinner 
-    # but ensure the final message lands in the status area.
-    
-    # Fetch news directly (loading message handled in UI)
     result = st.session_state.news_service.fetch_news(date_str)
-        
+    
+    # Get today's date for comparison
+    today = datetime.today().date()
+    selected = st.session_state.selected_date
+    
     if result["status"] == "success":
         if "data" in result:
             st.session_state.today_rows = result["data"]
             st.session_state.current_index = 0
             st.session_state.current_date = date_str
+            
+            # Check if data is empty and set appropriate message
             if not st.session_state.today_rows:
-                 # This will be shown in the status area on rerun
-                 pass 
+                if selected <= today:
+                    # Past or today with no data
+                    st.session_state.status_message = "📭 本日無新聞資料 [0則]"
+                    st.session_state.status_type = "warning"
+                else:
+                    # Future date
+                    st.session_state.status_message = "📅 無此日期資料請重選日期"
+                    st.session_state.status_type = "warning"
+            else:
+                # Clear status message if data exists
+                st.session_state.status_message = None
+                st.session_state.status_type = None
         else:
             st.success(result.get("message", "操作成功"))
     elif result["status"] == "warning":
         st.warning(result["message"])
-    else:
-            # If data is empty, the result message might say "No news"
-            # We can let the caller handle the message if needed, 
-            # but usually we just update state.
-            pass
     
     return result
 
-def handle_comment(row, comment):
-    """Send comment to n8n."""
-    sheet_name = st.session_state.selected_date.strftime("%Y/%m/%d")
-    
-    with st.spinner("送出評論中..."):
-        result = st.session_state.news_service.post_comment(sheet_name, row["列號"], comment)
-    
-    if result["status"] == "success":
-        st.success(result["message"])
-        # Update local state
-        for r in st.session_state.today_rows:
-            if r["列號"] == row["列號"]:
-                r["評論"] = comment
-                break
-        rerun()
-    else:
-        st.error(result["message"])
+# ====== Auto-load today's news on first run ======
+if not st.session_state.auto_loaded:
+    date_str = datetime.today().strftime("%Y/%m/%d")
+    result = st.session_state.news_service.fetch_news(date_str)
+    if result["status"] == "success" and "data" in result:
+        st.session_state.today_rows = result["data"]
+        st.session_state.current_index = 0
+        st.session_state.current_date = date_str
+    st.session_state.auto_loaded = True
 
 # ====== UI Layout ======
 
@@ -115,7 +104,6 @@ with controls_container:
         )
     with col_btn:
         # Add spacer to align button with input box (pushing it down by label height)
-        # Increased to 38px to account for larger label font size
         st.markdown('<div style="height: 38px;"></div>', unsafe_allow_html=True)
         if st.button("🔄 更新", key="btn_update_news"):
             # Show updating message in status container using a placeholder
@@ -140,11 +128,24 @@ with controls_container:
 
 # 3. Status Bar (Below Controls)
 with status_container:
-    # Only show warning if no data. 
-    if not st.session_state.today_rows:
+    # Show status message if set
+    if st.session_state.status_message:
+        if st.session_state.status_type == "warning":
+            # Orange warning box
+            st.markdown(
+                f'<div class="status-area" style="background-color: #e69138; color: white; padding: 1rem; border-radius: 0.5rem; text-align: center;">{st.session_state.status_message}</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f'<div class="status-area">{st.session_state.status_message}</div>',
+                unsafe_allow_html=True
+            )
+    elif not st.session_state.today_rows:
+        # Default message if no data and no status message
         st.markdown('<div class="status-area">', unsafe_allow_html=True)
         st.markdown(
-            '<div style="color: #FFFFFF; font-weight: bold; font-size: 1.2rem;">請點擊「更新」以取得內容</div>',
+            '<div style="color: #FFFFFF; font-weight: bold; font-size: 1.2rem;">無新聞資料，請選擇日期後點擊「更新」</div>',
             unsafe_allow_html=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -176,7 +177,7 @@ with content_container:
             </div>
             """, unsafe_allow_html=True)
 
-            # Navigation Buttons (Restored)
+            # Navigation Buttons
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("⬅️ 上一則", key="btn_prev", disabled=(st.session_state.current_index == 0)):
@@ -186,14 +187,4 @@ with content_container:
                 if st.button("➡️ 下一則", key="btn_next", disabled=(st.session_state.current_index == len(st.session_state.today_rows) - 1)):
                     st.session_state.current_index += 1
                     rerun()
-
-            # Comment Section
-            st.markdown("---")
-            comment_key = f"comment_{row.get('sno')}_{st.session_state.current_date}"
-            current_comment = row.get("評論", "")
-            
-            new_comment = st.text_area("📝 留下評論", value=current_comment, key=comment_key)
-            
-            if st.button("送出評論", key=f"btn_comment_{row.get('sno')}"):
-                handle_comment(row, new_comment)
 
