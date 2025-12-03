@@ -67,8 +67,13 @@ def handle_update():
                 st.session_state.status_type = None
         else:
             st.success(result.get("message", "操作成功"))
-    elif result["status"] == "warning":
-        st.warning(result["message"])
+    else:
+        # Clear data on warning or error
+        st.session_state.today_rows = []
+        st.session_state.current_index = 0
+        
+        if result["status"] == "warning":
+            st.warning(result["message"])
     
     return result
 
