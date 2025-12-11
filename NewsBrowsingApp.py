@@ -285,27 +285,26 @@ def show_web_ui():
                         st.session_state.current_index += 1
                         rerun()
              
-                """
                 # 評論區塊
-                st.markdown("---")
-                comment_key = f"comment_{row.get('sno')}_{st.session_state.current_date}"
-                current_comment = row.get("評論", "")
+                #st.markdown("---")
+                #comment_key = f"comment_{row.get('sno')}_{st.session_state.current_date}"
+                    #current_comment = row.get("評論", "")
                 
-                new_comment = st.text_area("📝 留下評論", value=current_comment, key=comment_key)
+                #new_comment = st.text_area("📝 留下評論", value=current_comment, key=comment_key)
                 
-                st.button("送出評論", key=f"btn_comment_{row.get('sno')}", on_click=handle_comment, args=(row, comment_key))
+                #st.button("送出評論", key=f"btn_comment_{row.get('sno')}", on_click=handle_comment, args=(row, comment_key))
                 
                 # 顯示評論成功訊息（如果在重新執行後有設定）
-                if st.session_state.comment_success_msg:
-                    st.success(st.session_state.comment_success_msg)
+                #if st.session_state.comment_success_msg:
+                    #st.success(st.session_state.comment_success_msg)
                     # 顯示後清除，避免下次重新整理還出現
-                    st.session_state.comment_success_msg = None
+                    #st.session_state.comment_success_msg = None
                 
                 # 顯示評論錯誤訊息
-                if st.session_state.comment_error_msg:
-                    st.error(st.session_state.comment_error_msg)
-                    st.session_state.comment_error_msg = None
-                """
+                #if st.session_state.comment_error_msg:
+                    #st.error(st.session_state.comment_error_msg)
+                    #st.session_state.comment_error_msg = None
+                
 
 def show_app_ui():
     """顯示 App 使用者介面（適用於 PWA/獨立模式）。"""
